@@ -26,7 +26,7 @@
 #' - `DT_round`: Datetime of the measurement in UTC, rounded to the nearest 15 minute interval.
 #' - `DT_round_MT`: Datetime of the measurement in America/Denver timezone, rounded to the nearest 15 minute interval.
 #' - `DT_join`: Character form of DT_round
-#' - `parameter`: The water quality parameter being measured (e.g., "DO", "Turbidity", etc.), supplied by the sensor_numbers dataframe
+#' - `parameter`: The water quality parameter being measured (e.g., "DO", "Turbidity", etc.), supplied by the `sensor_numbers` dataframe that is created within this function.
 #' - `value`: The raw value of the measurement for the specified parameter. NAs included
 #' - `units`: The units of the measurement (e.g., "mg/L", "NTU", etc.), supplied by the sensor_numbers dataframe
 #'
