@@ -166,98 +166,98 @@ pull_contrail_api <- function(start_DT, end_DT = Sys.time(), username, password,
     # Iterate over parameters for each site
     map(sensors, function(.param) {
 
-        #Correct param for downstream uses
-        parameter <- case_when(
-          .param == "Chlorophyll" ~ "Chl-a Fluorescence",
-          .param == "Conductivity" ~ "Specific Conductivity",
-          .param == "Dissolved Oxygen" ~ "DO",
-          .param == "Stage" ~ "Depth",
-          .param == "pH" ~ "pH",
-          .param == "Temperature" ~ "Temperature",
-          .param == "Turbidity" ~ "Turbidity",
-          .param == "Phycocyanin" ~ "TAL PC Fluorescence",
-          TRUE ~ NA_character_
-        )
+      #Correct param for downstream uses
+      parameter <- case_when(
+        .param == "Chlorophyll" ~ "Chl-a Fluorescence",
+        .param == "Conductivity" ~ "Specific Conductivity",
+        .param == "Dissolved Oxygen" ~ "DO",
+        .param == "Stage" ~ "Depth",
+        .param == "pH" ~ "pH",
+        .param == "Temperature" ~ "Temperature",
+        .param == "Turbidity" ~ "Turbidity",
+        .param == "Phycocyanin" ~ "TAL PC Fluorescence",
+        TRUE ~ NA_character_
+      )
 
-        page <- site_page
-        # Find parameter
-        href <- page |>
-          html_element(xpath = paste0("//a[contains(text(),'",.param ,"')]")) |>
-          html_attr("href")
+      page <- site_page
+      # Find parameter
+      href <- page |>
+        html_element(xpath = paste0("//a[contains(text(),'",.param ,"')]")) |>
+        html_attr("href")
 
-        # Check if found
-        if (is.na(href)) {
-          message("No link found for ", site, " - ", .param)
+      # Check if found
+      if (is.na(href)) {
+        message("No link found for ", site, " - ", .param)
+        return(NULL)
+      }
+
+      full_param_url <- paste0("https://contrail.fcgov.com", href)
+      # Test param link
+      site_param_page <- request(full_param_url) |>
+        req_cookie_preserve(session_file) |>
+        req_perform()
+      # Check if accessible
+      if (resp_status(site_param_page) != 200) {
+        message("Param: ", .param, " for site: ", site, " not accessible")
+        return(NULL)
+      }
+
+      #Parse out site_id from url
+      site_id_info <- str_extract(full_param_url, "(?<=site_id=).*")
+      #encode url for download
+      encoded_url <- paste0(
+        "https://contrail.fcgov.com/api/file/?site_id=", site_id_info,
+        "&mode=&hours=&data_start=", start_DT_encoded,
+        "&data_end=", end_DT_encoded,
+        "&tz=US%2FMountain&format_datetime=%25Y-%25m-%25d+%25H%3A%25i%3A%25S&mime=txt&delimiter=comma"
+      )
+
+      tryCatch({
+        #request download from encoded url
+        download_req <- request(encoded_url) |> req_cookie_preserve(session_file)
+        download_resp <- req_perform(download_req)
+
+        if (resp_status(download_resp) == 200) {
+          message("Downloading for: ", .param, " for site: ", site)
+          # Read CSV content directly from response
+          csv_content <- resp_body_string(download_resp)
+
+          data <- read_csv(csv_content, show_col_types = FALSE) |>
+            mutate(
+              DT_MT = force_tz(Reading, tzone = "America/Denver"),
+              DT = with_tz(DT_MT, tzone = "UTC"),
+              timestamp = DT,
+              DT_round = round_date(DT, "15 minutes"),
+              DT_round_MT = with_tz(DT_round, tz = "America/Denver"),
+              DT_join = as.character(DT_round),
+              parameter = parameter,
+              site_cd = paste0(tolower(site_code), "_fc"),
+              units = case_when(
+                parameter == "Specific Conductivity" ~ "µS/cm",
+                parameter == "Turbidity" ~ "NTU",
+                parameter == "DO" ~ "mg/L",
+                parameter == "pH" ~ "pH",
+                parameter == "Temperature" ~ "°C",
+                parameter == "Chl-a Fluorescence" ~ "RFU",
+                parameter == "Blue-Green Algae Fluorescence" ~ "RFU",
+                parameter == "Depth" ~ "ft",
+                TRUE ~ NA_character_
+              )
+            ) |>
+            select(timestamp, DT, DT_round, DT_round_MT, DT_join, parameter, site_cd,
+                   value = Value, units)
+
+          return(data)
+        } else {
+          message("Download failed for: ", site_code, " ", parameter)
           return(NULL)
         }
 
-        full_param_url <- paste0("https://contrail.fcgov.com", href)
-        # Test param link
-        site_param_page <- request(full_param_url) |>
-          req_cookie_preserve(session_file) |>
-          req_perform()
-        # Check if accessible
-        if (resp_status(site_param_page) != 200) {
-          message("Param: ", .param, " for site: ", site, " not accessible")
-          return(NULL)
-        }
-
-        #Parse out site_id from url
-        site_id_info <- str_extract(full_param_url, "(?<=site_id=).*")
-        #encode url for download
-        encoded_url <- paste0(
-          "https://contrail.fcgov.com/export/file/?site_id=", site_id_info,
-          "&mode=&hours=&data_start=", start_DT_encoded,
-          "&data_end=", end_DT_encoded,
-          "&tz=US%2FMountain&format_datetime=%25Y-%25m-%25d+%25H%3A%25i%3A%25S&mime=txt&delimiter=comma"
-        )
-
-        tryCatch({
-          #request download from encoded url
-          download_req <- request(encoded_url) |> req_cookie_preserve(session_file)
-          download_resp <- req_perform(download_req)
-
-          if (resp_status(download_resp) == 200) {
-            #message("Downloading for: ", .param, " for site: ", site)
-            # Read CSV content directly from response
-            csv_content <- resp_body_string(download_resp)
-
-            data <- read_csv(csv_content, show_col_types = FALSE) |>
-              mutate(
-                DT_MT = force_tz(Reading, tzone = "America/Denver"),
-                DT = with_tz(DT_MT, tzone = "UTC"),
-                timestamp = DT,
-                DT_round = round_date(DT, "15 minutes"),
-                DT_round_MT = with_tz(DT_round, tz = "America/Denver"),
-                DT_join = as.character(DT_round),
-                parameter = parameter,
-                site_cd = paste0(tolower(site_code), "_fc"),
-                units = case_when(
-                  parameter == "Specific Conductivity" ~ "µS/cm",
-                  parameter == "Turbidity" ~ "NTU",
-                  parameter == "DO" ~ "mg/L",
-                  parameter == "pH" ~ "pH",
-                  parameter == "Temperature" ~ "°C",
-                  parameter == "Chl-a Fluorescence" ~ "RFU",
-                  parameter == "Blue-Green Algae Fluorescence" ~ "RFU",
-                  parameter == "Depth" ~ "ft",
-                  TRUE ~ NA_character_
-                )
-              ) |>
-              select(timestamp, DT, DT_round, DT_round_MT, DT_join, parameter, site_cd,
-                     value = Value, units)
-
-            return(data)
-          } else {
-            message("Download failed for: ", site_code, " ", parameter)
-            return(NULL)
-          }
-
-        }, error = function(e) {
-          message("Error downloading from: ", site_code, " ", parameter)
-          return(NULL)
-        })
+      }, error = function(e) {
+        message("Error downloading from: ", site_code, " ", parameter)
+        return(NULL)
       })
+    })
   })%>%
     rename(site = site_cd)%>%
     split(f = list(.$site, .$parameter), sep = "-") %>%
@@ -267,6 +267,3 @@ pull_contrail_api <- function(start_DT, end_DT = Sys.time(), username, password,
   message("Download Successfull for ", length(results), " of ", (length(sensors)*length(sites)), " datasets")
   return(results)
 }
-
-
-
