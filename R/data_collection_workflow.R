@@ -32,6 +32,7 @@ invisible(
     "here",
     # Stats/modeling
     "RcppRoll",
+    "slider",
     # Web scraping/data retrieval
     "rvest",
     "httr",
