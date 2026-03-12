@@ -358,13 +358,10 @@ for (chunk_idx in seq_along(intrasensor_data_chunks)) {
 
 # Network Check and Final Flags
 site_order_list <- list(
-  clp = c("joei", "cbri", "chd", "pfal", "sfm", "pbr_fc", "pman", "pbd",
+  clp = c("joei", "cbri", "chd", "pfal", "pbr_fc", "pman", "pbd",
           "bellvue", "salyer", "udall", "riverbend", "cottonwood", "elc",
           "archery", "riverbluffs"),
-  springcreek = c("riverbend", "springcreek", "cottonwood"),
-  boxcreek = c("elc", "boxcreek", "archery"),
-  sfm = c("sfm"),
-  mtn_campus = c("mtn_campus")
+  sfm = c("sfm")
 )
 
 network_flags <- intrasensor_flags_list %>%
