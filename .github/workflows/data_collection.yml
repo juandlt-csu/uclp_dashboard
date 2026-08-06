@@ -59,12 +59,20 @@ jobs:
         run: |
           git config --global user.email 'actions@github.com'
           git config --global user.name 'GitHub Actions'
+
+          # Sync branch without rebase to avoid binary replay conflicts
+          git fetch origin ${{ github.ref_name }}
+          git checkout ${{ github.ref_name }}
+          git reset --hard origin/${{ github.ref_name }}
+
+          # Stage freshly generated artifact
           git add -f data/data_backup.parquet
+
           if git diff --staged --quiet; then
             echo "No changes to commit"
-          else
-            git commit -m "Hourly data update: $(date -u +%Y-%m-%d_%H:%M:%S_UTC)"
-            git pull --rebase origin ${{ github.ref_name }}
-            git push origin ${{ github.ref_name }}
-            echo "Data successfully updated and pushed"
+            exit 0
           fi
+
+          git commit -m "Hourly data update: $(date -u +%Y-%m-%d_%H:%M:%S_UTC)"
+          git push origin ${{ github.ref_name }}
+          echo "Data successfully updated and pushed"
